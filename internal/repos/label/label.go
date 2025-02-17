@@ -82,7 +82,6 @@ func (r *LabelRepository) AssignLabelsToTask(ctx context.Context, taskID int, us
 }
 
 func (r *LabelRepository) DeassignLabelFromAllTaskAndDelete(ctx context.Context, userID int, labelID int) error {
-	// create one transaction to confirm if the label is owned by the user then delete all TaskLabels record for this label:
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		log := logging.FromContext(ctx)
 		var labelCount int64
@@ -98,7 +97,7 @@ func (r *LabelRepository) DeassignLabelFromAllTaskAndDelete(ctx context.Context,
 			log.Debug("Error deleting task labels")
 			return err
 		}
-		// delete the actual label:
+
 		if err := tx.Where("id = ?", labelID).Delete(&lModel.Label{}).Error; err != nil {
 			log.Debug("Error deleting label")
 			return err
