@@ -35,48 +35,43 @@ func (r *LabelRepository) CreateLabels(ctx context.Context, labels []*lModel.Lab
 	return nil
 }
 
-func (r *LabelRepository) isLabelsAssignableByUser(ctx context.Context, userID int, toBeAdded []int, toBeRemoved []int) bool {
-	labelIDs := append(toBeAdded, toBeRemoved...)
-
+func (r *LabelRepository) areLabelsAssignableByUser(ctx context.Context, userID int, labels []int) bool {
 	log := logging.FromContext(ctx)
 	var count int64
-	if err := r.db.WithContext(ctx).Model(&lModel.Label{}).Where("id IN (?) AND created_by = ?", labelIDs, userID).Count(&count).Error; err != nil {
+
+	if err := r.db.WithContext(ctx).Model(&lModel.Label{}).Where("id IN (?) AND created_by = ?", labels, userID).Count(&count).Error; err != nil {
 		log.Error(err)
 		return false
 	}
-	return count == int64(len(labelIDs))
+
+	return count == int64(len(labels))
 }
 
-func (r *LabelRepository) AssignLabelsToTask(ctx context.Context, taskID int, userID int, toBeAdded []int, toBeRemoved []int) error {
-	if len(toBeAdded) < 1 && len(toBeRemoved) < 1 {
-		return nil
-	}
-	if !r.isLabelsAssignableByUser(ctx, userID, toBeAdded, toBeRemoved) {
+func (r *LabelRepository) AssignLabelsToTask(ctx context.Context, taskID int, userID int, labels []int) error {
+	if !r.areLabelsAssignableByUser(ctx, userID, labels) {
 		return errors.New("labels are not assignable by user")
 	}
 
 	var taskLabels []*tModel.TaskLabels
-	for _, labelID := range toBeAdded {
+	for _, labelID := range labels {
 		taskLabels = append(taskLabels, &tModel.TaskLabels{
 			TaskID:  taskID,
 			LabelID: labelID,
-			UserID:  userID,
 		})
 	}
+
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if len(toBeRemoved) > 0 {
-			if err := r.db.WithContext(ctx).Where("task_id = ? AND user_id = ? AND label_id IN (?)", taskID, userID, toBeRemoved).Delete(&tModel.TaskLabels{}).Error; err != nil {
-				return err
-			}
+		if err := r.db.WithContext(ctx).Where("task_id = ? AND user_id = ?", taskID, userID).Delete(&tModel.TaskLabels{}).Error; err != nil {
+			return err
 		}
-		if len(toBeAdded) > 0 {
-			if err := r.db.WithContext(ctx).Clauses(clause.OnConflict{
-				Columns:   []clause.Column{{Name: "task_id"}, {Name: "label_id"}, {Name: "user_id"}},
-				DoNothing: true,
-			}).Create(&taskLabels).Error; err != nil {
-				return err
-			}
+
+		if err := r.db.WithContext(ctx).Clauses(clause.OnConflict{
+			Columns:   []clause.Column{{Name: "task_id"}, {Name: "label_id"}, {Name: "user_id"}},
+			DoNothing: true,
+		}).Create(&taskLabels).Error; err != nil {
+			return err
 		}
+
 		return nil
 	})
 }

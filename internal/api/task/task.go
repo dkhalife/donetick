@@ -29,6 +29,7 @@ type TaskReq struct {
 	IsRolling    bool                `json:"is_rolling"`
 	Frequency    tModel.Frequency    `json:"frequency"`
 	Notification tModel.Notification `json:"notification"`
+	Labels       []int               `json:"labels"`
 }
 
 type Handler struct {
@@ -159,16 +160,12 @@ func (h *Handler) createTask(c *gin.Context) {
 		return
 	}
 
-	// labels := make([]int, len(*TaskReq.Labels))
-	// for i, label := range *TaskReq.Labels {
-	// 	labels[i] = int(label.LabelID)
-	// }
-	// if err := h.lRepo.AssignLabelsToTask(c, createdTask.ID, currentUser.ID, labels, []int{}); err != nil {
-	// 	c.JSON(500, gin.H{
-	// 		"error": "Error adding labels",
-	// 	})
-	// 	return
-	// }
+	if err := h.lRepo.AssignLabelsToTask(c, createdTask.ID, currentUser.ID, TaskReq.Labels); err != nil {
+		c.JSON(500, gin.H{
+			"error": "Error adding labels",
+		})
+		return
+	}
 
 	go func() {
 		h.nPlanner.GenerateNotifications(c, createdTask)
@@ -226,13 +223,12 @@ func (h *Handler) editTask(c *gin.Context) {
 		return
 	}
 
-	// TODO: implement
-	/*if err := h.lRepo.AssignLabelsToTask(c, TaskReq.ID, currentUser.ID, labelsToAdd, labelsToBeRemoved); err != nil {
+	if err := h.lRepo.AssignLabelsToTask(c, taskId, currentUser.ID, TaskReq.Labels); err != nil {
 		c.JSON(500, gin.H{
 			"error": "Error adding labels",
 		})
 		return
-	}*/
+	}
 
 	updatedTask := &tModel.Task{
 		ID:           taskId,
